@@ -1,22 +1,22 @@
 
 
-path <- "/Users/austen/Desktop/the_thing/voluntary_associations/codefordc/"
+path <- getwd()
 years <- c("2012", "2014", "2016", "2018")
 
 all.data <- NULL
 
 for(year in years){
 	
-	data <- read.table(file=paste(path, "data/", year, ".csv", sep=""), header=TRUE, sep=",")
+	# read in data
+	data <- read.table(file=paste(path, "/data/", year, ".csv", sep=""), header=TRUE, sep=",")
+	
+	# If this is the first iteration, initialize
 	if(is.null(all.data)) all.data <- data[0,]
 	
-	#str(data)
 	print(paste("start year", year))
-	print(colnames(data))
-	# ahhhh you can assign to colnames()! weird
-	# well it's returning an object ref, in effect
-	# tolower() lowercases it
+	print(colnames(data))	
 	
+	### Wrangle column name inconsistencies
 	
 	# first, reassign colnames as lowercase
 	colnames(data) <- tolower(colnames(data))
@@ -27,13 +27,16 @@ for(year in years){
 	colnames(data)[cn.index] <- "contest_name"
 	colnames(data)[grep("precinct", colnames(data))] <- "precinct"
 	# ward, candidate, votes should already be fine
-	# whoops, fix ward for 2018
+	# whoops, fix ward for 2018's sake
 	colnames(data)[grep("ward", colnames(data))] <- "ward"
 	
+	
+	### Drop irrelevant columns
 	
 	# things we wanna drop:
 	c <- colnames(data)
 	drop.indices <- c(grep("election", c), grep("contest_?(id|number)", c), grep("party", c))
+	# note we don't drop precinct because SMDs may cross precincts
 	colnames(data)[drop.indices] <- "drop"
 	data[grep("drop", colnames(data))] <- NULL
 	# got an extra line there bro
@@ -47,18 +50,8 @@ for(year in years){
 	print(dim(data))
 	
 	
+	### Drop non-ANC obs
 	
-	# fix names?
-	# find which column name is contest_name
-	# reformat it to contest_name
-	# other vars of interest:
-	#   ward, candidate, votes
-	# note over and under votes are notated as candidates!
-	# not in 2012 tho
-	# we'd ideally want to reshape that somehow
-	
-	
-	# drop non-ANC obs
 	reg <- "[[:digit:]][[:upper:]][[:digit:]]{2}"
 	print(str(data$contest_name))
 	print(grep(reg, data$contest_name, fixed=FALSE))
@@ -69,22 +62,18 @@ for(year in years){
 	
 	# reformat contest name to be just 6B04 e.g.
 	data$contest_name <- regmatches(data$contest_name, regexpr(reg, data$contest_name))
-	# regexpr + regmatches
-	# regmatches(char vector, match object (returned by regexpr))
-	# [[:digit:]][[:upper:]][[:digit:]]{2}
 	
 	
 	# break out to ANC and smd fields (already have ward)
 	data$anc <- regmatches(data$contest_name, regexpr("[[:alpha:]]", data$contest_name))
 	data$smd <- regmatches(data$contest_name, regexpr("[[:digit:]]{2}$", data$contest_name))
 	
-	# ok now we wanna reshape wide...
-	# which entails breaking the data into groups
-	# defined by SMD
-	# but this data is structured in a way that reshape maybe can't handle
-	# so do it in a loop?????
-	# over row indices or SMDs?
-	# SMDs sounds easier?
+	
+	
+	
+	#### Collapse
+	# Want to collapse down to contest level, right now just collapsing to candidate
+	
 	smd.list <- unique(data$contest_name)
 	
 	# ooh when I try grabbing a SMD it seems like obs are dublicated. why??
@@ -97,6 +86,7 @@ for(year in years){
 	# initialze new data.frame with same column names
 	wide.data <- data[0,]
 	
+	# loop over unique SMDs, collapsing over precincts down to candidate level
 	for(smd in smd.list){
 		# find the smd
 		smd <- data[data$contest_name == smd,]
@@ -126,22 +116,19 @@ for(year in years){
 	# some years have whitespace in candidate names
 	wide.data$candidate <- strwrap(wide.data$candidate)
 	
-	#str(wide.data)
 	print("year done")
 	print(dim(wide.data))
 		
 	# append to other years
 	all.data <- rbind(all.data, wide.data)
-	
-	# collapse.groupedData()... in nlme
-	
+		
 }
 
 # sort for easier sanity checking
 all.data <- all.data[order(all.data$year, all.data$contest_name, all.data$candidate),]
 
 
-write.table(all.data, file=paste(path, "data/", "allyears", "_filtered.csv", sep=""), append=FALSE, quote=FALSE, sep=",", row.names=FALSE, col.names=TRUE)
+write.table(all.data, file=paste(path, "/data/", "allyears", "_filtered.csv", sep=""), append=FALSE, quote=FALSE, sep=",", row.names=FALSE, col.names=TRUE)
 
 
 
