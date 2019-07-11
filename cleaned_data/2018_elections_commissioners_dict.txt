@@ -1,6 +1,0 @@
-
-
-
-This dataset should be identical to election_history_R.csv except with years prior to 2018 filtered out and incumbent_name added.
-
-incumbent_name -- name of commissioner who occupied the seat following the 2018 election

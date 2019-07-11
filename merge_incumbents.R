@@ -10,34 +10,34 @@ election.data <- read.csv(paste(path, "/cleaned_data/election_history_R.csv", se
 
 election.data <- filter(election.data, year==2018)
 
-incumbent.data <- read.csv(paste(path, "/cleaned_data/current_anc_membership.csv", sep=""), 
+commissioner.data <- read.csv(paste(path, "/cleaned_data/current_anc_membership.csv", sep=""), 
                          sep=",", header=TRUE, stringsAsFactors=FALSE)
-colnames(incumbent.data) <- tolower(colnames(incumbent.data))
-incumbent.data <- incumbent.data %>% rename(contest_name=smd, incumbent_name=name) %>%
-                        select(contest_name, incumbent_name)
+colnames(commissioner.data) <- tolower(colnames(commissioner.data))
+commissioner.data <- commissioner.data %>% rename(contest_name=smd, commissioner_name=name) %>%
+                        select(contest_name, commissioner_name)
 
 
 
-merged <- full_join(election.data, incumbent.data, by="contest_name")
+merged <- full_join(election.data, commissioner.data, by="contest_name")
 
-# remove "chairperson" from incumbent names 
-merged <- merged %>% mutate(incumbent_name = trimws(sub("Chairperson", "", incumbent_name)))
+# remove "chairperson" from commissioner names 
+merged <- merged %>% mutate(commissioner_name = trimws(sub("Chairperson", "", commissioner_name)))
 
 # we also have to remove any commas in names because that will break the next import
-merged <- merged %>% mutate(incumbent_name = sub(",", "", incumbent_name))
+merged <- merged %>% mutate(commissioner_name = sub(",", "", commissioner_name))
 
 # Discern matches
-matched <- merged %>% mutate(perfect_match = tolower(trimws(winner)) == tolower(incumbent_name))
+matched <- merged %>% mutate(perfect_match = tolower(trimws(winner)) == tolower(commissioner_name))
 
 # qualV::LCS isn't vectorized, so:
 # create 2xnrow array of char arrays
 # feed it to apply
 # pull a numeric vector out the other end
-winner_incumbent = array(dim=c(2, nrow(matched)))
-winner_incumbent[1,] <- matched$winner
-winner_incumbent[2,] <- matched$incumbent_name
+winner_commissioner = array(dim=c(2, nrow(matched)))
+winner_commissioner[1,] <- matched$winner
+winner_commissioner[2,] <- matched$commissioner_name
 
-matched$match_quality <- apply(winner_incumbent, c(2), 
+matched$match_quality <- apply(winner_commissioner, c(2), 
                                  function(x) LCS(unlist(strsplit(x[1], split="")), 
                                                  unlist(strsplit(x[2], split="")))$QSI)
 # dawg yes
@@ -47,7 +47,7 @@ unmatching <- matched %>% filter(!rough_match)
 
 
 matched <- matched %>% mutate(write_in = grepl("write", tolower(winner)), 
-                                vacant = grepl("vacant", tolower(incumbent_name)))
+                                vacant = grepl("vacant", tolower(commissioner_name)))
 matched <- matched %>% mutate(switcharoo = !(write_in | vacant | rough_match))
 # what could be going on here? recording issues? switching proximate SMDs? actual switches?
 
@@ -69,7 +69,7 @@ matched <- matched %>% select(-write_in, -perfect_match, -match_quality) %>% ren
 
 # check rough matching real quick
 #rough_matches <- matched %>% filter(rough_match & !perfect_match) %>% 
-#                                     select(contest_name, year, winner, incumbent_name)
+#                                     select(contest_name, year, winner, commissioner_name)
 # perfecto
 
 # write
