@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
-```{r cache=TRUE, echo=FALSE}
+```{r cache=TRUE, echo=FALSE, results='hide'}
 
 library(tidyverse)
 
@@ -29,6 +29,19 @@ check <- election.data %>% group_by(year) %>% tally()
 check2 <- election.data %>% group_by(year, ward) %>% tally()
 #print(check2)
 
+# make some magic
+
+# candidate types: write-in vs. named; contested vs. uncontested
+election.data$write_in_winner <- grepl("write", tolower(election.data$winner))
+election.data <- election.data %>% mutate(uncontested = explicit_candidates == 1, 
+                        empty = explicit_candidates == 0, w_over_cand = write_in_winner & !empty)
+
+
+# engagement metrics: engagement, votes, vote_norm
+election.data <- election.data %>% mutate(engagement = smd_anc_votes / smd_ballots, 
+                                          vote_norm = winner_votes / smd_ballots)
+
+
 
 # ideas-----
 # vote proportions across space
@@ -37,29 +50,75 @@ check2 <- election.data %>% group_by(year, ward) %>% tally()
 # did a write-in ever beat a candidate??
 # dist. of winning vote #s
 
-election.data$write_in_winner <- grepl("write", tolower(election.data$winner))
-election.data <- election.data %>% mutate(uncontested = explicit_candidates == 1, 
-                        empty = explicit_candidates == 0, w_over_cand = write_in_winner & !empty)
-
 sum <- election.data %>% group_by(ward, year) %>% summarize(cand = mean(explicit_candidates), 
                             votes = mean(winner_votes), vote_norm = mean(winner_votes / smd_ballots),
                             engagement = mean(smd_anc_votes / smd_ballots))
+# pull in turnout here, ideally
+
 sum %>% print(n=nrow(.))
 
 
 ```
 
+Load ANC election data 2012-2018
 
-
-Yenlo Atmro
-
+Ward-level:
 
 ```{r}
 
-require(tidyverse)
+suppressPackageStartupMessages({
+  require(tidyverse)
+  })
 
 s <- as.data.frame(sum)
 y <- ggplot(s, aes(ward, engagement)) + geom_point(aes(colour=factor(year)))
 y
 
+x <- ggplot(s, aes(ward, vote_norm)) + geom_point(aes(colour=factor(year)))
+x
+
+
+
 ```
+
+Contest-level
+
+by write-in status of winner:
+```{r}
+
+c <- as.data.frame(election.data)
+
+# count write-in vs. named winners
+# eh, really ought to do this with the 2018 data so we can see substantive write-ins...
+c %>% group_by(write_in_winner, year) %>% tally()
+
+write.in <- c %>% group_by(write_in_winner, year) %>% summarize(votes = mean(winner_votes), 
+                                                                vote_norm = mean(vote_norm), 
+                                                                engagement = mean(engagement),
+                                                                count = n())
+
+#write.in
+
+x <- ggplot(write.in, aes(write_in_winner, vote_norm)) + geom_point(aes(color=factor(year)))
+x
+
+y <- ggplot(write.in, aes(write_in_winner, engagement)) + geom_point(aes(color=factor(year)))
+y
+```
+
+by contested/uncontested:
+```{r}
+contested <- c %>% group_by(explicit_candidates, year) %>% summarize(votes = mean(winner_votes), 
+                                                         vote_norm = mean(vote_norm), 
+                                                         engagement = mean(engagement),
+                                                         count = n())
+
+x <- ggplot(contested, aes(explicit_candidates, vote_norm)) + geom_point(aes(color=factor(year)))
+x
+
+y <- ggplot(contested, aes(explicit_candidates, engagement)) + geom_point(aes(color=factor(year)))
+y
+
+```
+
+
