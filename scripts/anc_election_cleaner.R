@@ -10,6 +10,7 @@ path <- getwd()
 years <- c("2012", "2014", "2016", "2018")
 
 all.data <- NULL
+all.regs <- NULL
 
 for(year in years){
 	
@@ -64,7 +65,10 @@ for(year in years){
 	totals <- data[grep("- TOTAL", data$contest_name),] %>% select(contest_name, precinct, votes)
 	totals <- spread(totals, contest_name, votes)
 	totals <- rename(totals, registered_voters = matches("REGISTER"), ballots = matches("BALLOT"))
-	
+
+
+
+
 	# take totals out of data
 	data <- data[-grep("- TOTAL", data$contest_name),]
 	
@@ -73,7 +77,9 @@ for(year in years){
 	# this mostly seems to work
 	# I'm seeing observations for ward 2 precinct 129 anc 6D04. weird. is in original data?
 	# yes. test for this! could indicate data issues!
-	
+
+
+
 	
 	# reformat contest name to be just 6B04 e.g.
 	data$contest_name <- regmatches(data$contest_name, regexpr(reg, data$contest_name))
@@ -87,6 +93,16 @@ for(year in years){
 	data$candidate <- strwrap(data$candidate)
 	# some names have commas, which will not read in properly
 	data$candidate <- str_remove(data$candidate, ",")
+
+
+
+        # hang onto registration & ballot data to wrangle elsewhere!
+	#   (after fixing ANC names; before reshaping & tossing reg data)
+        year.regs <- data %>% select(precinct, ward, anc, contest_name, registered_voters, ballots, year)
+        if(is.null(all.regs)) all.regs <- year.regs
+        all.regs <- bind_rows(all.regs, year.regs)
+
+
 
 
     #### Collapsing / Reshaping
@@ -198,5 +214,6 @@ all.data <- select(all.data, -ward_ballots, -ward_anc_votes)
 
 write.table(all.data, file=paste(path, "/cleaned_data/", "election_history_R.csv", sep=""), append=FALSE, quote=FALSE, sep=",", row.names=FALSE, col.names=TRUE)
 
-
+# spit out precinct-level registration and ballot counts
+write.table(all.regs, file=paste(path, "/cleaned_data/", "precinct_totals.csv", sep=""), append=FALSE, quote=FALSE, sep=",", row.names=FALSE, col.names=TRUE)
 
