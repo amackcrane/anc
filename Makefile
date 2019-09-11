@@ -1,18 +1,40 @@
 
+all: visualization/precinct_registration_test.html visualization/anc_election_analysis.html cleaned_data/election_data_for_anc_map.csv cleaned_data/2018_elections_commissioners.csv
+
+# Analysis/Vis
+
+visualization/precinct_registration_test.html: visualization/precinct_registration_test.Rmd cleaned_data/anc_turnout.csv
+	Rscript -e "library(rmarkdown); setwd('visualization'); render('precinct_registration_test.Rmd')"
+
+
+visualization/anc_election_analysis.html: visualization/anc_election_analysis.Rmd cleaned_data/election_history_R.csv
+	Rscript -e "library(rmarkdown); setwd('visualization'); render('anc_election_analysis.Rmd')"
+
+
+
+
+# Data processing
 
 cleaned_data/election_data_for_anc_map.csv: cleaned_data/election_history_R.csv map_prep.R
-	Rscript map_prep.R
+	Rscript scripts/map_prep.R
 
 cleaned_data/2018_elections_commissioners.csv: cleaned_data/election_history_R.csv merge_incumbents.R cleaned_data/current_anc_membership.csv
-	Rscript merge_incumbents.R
+	Rscript scripts/merge_incumbents.R
 # current_anc_membership.csv comes from Ilya's web scraping
 
+cleaned_data/anc_turnout.csv: cleaned_data/precinct_totals.csv scripts/precinct_registration.R cleaned_data/election_history_R.csv
+	Rscript scripts/precinct_registration.R
+
+cleaned_data/precinct_totals.csv: cleaned_data/election_history_R.csv
+
+cleaned_data/election_history_R.csv: scripts/anc_election_cleaner.R raw_data/2012.csv raw_data/2014.csv raw_data/2016.csv raw_data/2018.csv
+	Rscript scripts/anc_election_cleaner.R
 
 
-cleaned_data/election_history_R.csv: anc_election_cleaner.R raw_data/2012.csv raw_data/2014.csv raw_data/2016.csv raw_data/2018.csv
-	Rscript anc_election_cleaner.R
 
-raw_data/2012.csv: FORCE
+# Raw data
+
+raw_data/2012.csv:
 	curl -o raw_data/2012.csv https://electionresults.dcboe.org/Downloads/Reports/November_6_2012_General_and_Special_Election_Certified_Results.csv
 
 raw_data/2014.csv:
@@ -23,5 +45,21 @@ raw_data/2016.csv:
 
 raw_data/2018.csv:
 	curl -o raw_data/2018.csv https://electionresults.dcboe.org/Downloads/Reports/November_6_2018_General_Election_Certified_Results.csv
+
+
+# utilities
+
+#clean: clean_viz
+#	rm cleaned_data/election_history_R.csv
+#	rm cleaned_data/precinct_totals.csv
+#	rm cleaned_data/anc_turnout.csv
+#	rm scripts/*~
+
+clean_viz:
+	rm -f visualization/*.md
+	rm -f visualization/*.html
+	rm -rf visualization/*cache
+	rm -rf visualization/*files
+	rm -f visualization/*~
 
 FORCE:

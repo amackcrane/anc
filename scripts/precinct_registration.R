@@ -8,39 +8,66 @@ library(magrittr)
 
 path <- getwd()
 
-# read in data on voter registrations and ballots cast by precinct/year
-regs <- read.table(paste(path, "/cleaned_data/precinct_totals.csv", sep=""),
+# read in data on voter registrations and ballots cast by precinct/anc/year
+regs <- read.csv(paste(path, "/cleaned_data/precinct_totals.csv", sep=""),
          header=TRUE, sep=",")
 
-#print(head(regs))
+print(as_tibble(regs[order(regs$precinct),]))
+# ah, this has double observations...
+# OH! it just has double 2012 obs, which was cuz sloppy processing in election_cleaner.R
 
 # Make table of # ANCs corresponding to each precinct
 regs %<>% mutate(anc.full = paste(as.character(ward), as.character(anc), sep=""))
 count <- regs %>% group_by(precinct) %>% summarize(ancs = length(unique(anc.full)))
 
 # print some stuff
-print("How many ANCs does each precinct line in?")
+print("How many ANCs does each precinct lie in?")
 print(count)
 print("How many precincts cross N ANCs?")
 print(count %>% group_by(ancs) %>% summarize(precincts = length(unique(precinct))))
 
-# how many ancs have duplicitous precincts?
-#count.anc <- regs %>% group_by(anc.full) %>% summarize(pcts = length(unique(anc.full)))
-# not sure this is right ^^
 
 # Merge data on 'duplicitous' precincts w/ registration data
 #   and collapse from contest-level to ANC x precinct x year
 collapsed <- count %>%
         mutate(duplicitous = (ancs > 1)) %>%
 	inner_join(regs, by=c("precinct")) %>%
-	group_by(anc.full, precinct, year) %>%
-	summarize(
-            duplicitous = unique(duplicitous),
-	    voters = unique(registered_voters),
-            ballots = unique(ballots))
+	rename(voters = registered_voters) %>%
+	select(anc.full, precinct, year, duplicitous, voters, ballots)
+
+
+#	group_by(anc.full, precinct, year) %>%
+#       summarize(
+#            duplicitous = unique(duplicitous),
+#            voters = unique(registered_voters),
+#            ballots = unique(ballots))
+# this collapse should be obviated by the fixed input data...
 
 print("Registration data @ precinct x ANC x year lvl")
 print(collapsed)
+
+
+# how many ANCs have duplicitous pcts?
+count.anc <- collapsed %>% group_by(anc.full) %>%
+            mutate(count.tot = length(unique(precinct))) %>%
+            filter(duplicitous) %>%
+            group_by(anc.full) %>%
+            summarize(count.dup = length(unique(precinct)),
+	            count.tot = unique(count.tot))
+print("How many ancs have duplicitous precincts?")
+print(count.anc)
+
+# from ward 1 map, we know: 39 -> 1A, 1D, 1C (trivially)
+# 36 1A 1B
+# 37 is 1B + 1 block of 1A
+
+cat("\n\ntest ward 1 precinct overlaps! (voting data)\n")
+cat("expect: \n36 1A 1B\n39 1A 1D (1C)\n37 1A 1B\n")
+ward1 <- regs %>% filter(ward == 1 & year == 2012) %>%
+            group_by(precinct) %>%
+	    summarize(ancs = reduce(unique(anc.full), paste))
+print(ward1)
+cat("\n\n\n")
 
 # so at this point we could just toss precincts crossing ANCs (and lose around 40% of the data)
 # or we could average them or something
@@ -74,6 +101,10 @@ print(nrow(overlap))
 print("how many did we start with in the election data grouped by anc x pct?")
 print(nrow(collapsed) / 4)
 
+
+
+
+
 # these aren't far off, so it's clealy only including shapes with intersections -- it just might be counting some trivial ones
 
 #print("how many of the intersections in 'overlap' are nontrivial?")
@@ -98,7 +129,7 @@ print(nrow(collapsed) / 4)
 # 0. get relative areas of precincts in diff ANCs
 
 # get precinct total areas
-precinct.areas <- precincts %>%
+precinct.areas <- precinct_shapes %>%
             mutate(area = st_area(.) %>% as.numeric(),
                 precinct = regmatches(NAME, regexpr("[[:digit:]]+", NAME)))
 precinct.areas <- tibble(precinct=precinct.areas$precinct,
@@ -116,7 +147,20 @@ overlap %<>% mutate(rel.area = over.area / prec.area)
 #hist(overlap$rel.area, breaks=100)
 
 
+
 #hist(overlap$rel.area, breaks=100)
+# Test vs. ward 1 map
+cat("\ntest ward 1 precinct overlaps! (geo data)\n")
+cat("expect: \n36 1A 1B\n39 1A 1D (1C)\n37 1A 1B\n")
+ward1 <- overlap[regexpr("1", overlap$anc.full) > 0,] %>%
+               filter(rel.area > .01) %>%
+               group_by(precinct) %>%
+	       summarize(ancs = reduce(unique(anc.full), paste),
+	           min.area = min(over.area)) %>%
+	       filter(regexpr(" ", ancs)>0)
+print(ward1)
+cat("\nMatches election data at 1% relative area cutoff (to toss noise)\n")
+cat("\n\n\n")
 
 
 
@@ -127,19 +171,24 @@ crossref <- full_join(overlap, collapsed, by=c("anc.full", "precinct"))
 
 
 print(crossref)
+# everything's double here. why?
+# collapsed is double...
 
 # who's left hanging?
 # rel.area represents 'overlap'; duplicitous reps 'collapsed'
 # what do we expect?
 #   hopefully nobody left hanging from 'collapsed'
-print("Any any precinct-ANC combos from voting data missing from GIS data?")
+print("Any precinct-ANC combos from voting data missing from GIS data?")
 hanging.vote <- crossref %>% filter(is.na(rel.area), year==2012)
 print(nrow(hanging.vote))
 print(hanging.vote)
+cat("\n\n\n")
 # with no rel.area filtering, we get 3 missing, one of which is 'duplicitous'
 #   why would we get non-duplicitous hanging??? funny.
 
 #  ************************** Look into this ^^  *************************
+# the non-duplicitous ones are 4G which is the extension of 3G into ward 4!! so coded inconsistently I believe.
+# The other one is 2D
 
 print("Are any precinct-ANC combos from GIS data missing from voting data?")
 hanging.gis <- crossref %>% filter(is.na(duplicitous))
@@ -170,22 +219,67 @@ crossref %<>% mutate(rel.area = ifelse(is.na(rel.area), 1, rel.area))
 
 # gotta... recompute 'duplicitous' I think?
 crossref %<>% group_by(precinct, year) %>%
-                mutate(duplicitous = length(unique(anc.full)))
+                mutate(duplicitous = length(unique(anc.full))>1)
 # and then make sure nonduplicitous obs have area 1
-print("this better be zero")
+print("how many non-duplicitous precincts have rel.area  < 1?")
 print(nrow(crossref %>% filter(!duplicitous & rel.area < 1)))
-# which they do already! neat.
+# eeeek 350 fail this! of 850
+#hist(crossref$rel.area[!crossref$duplicitous], breaks=50)
+# but it doesn't look bad bad
+# this will probably be because of dropping trivial overlaps
+
+# force non-duplicitous to 1
+# tho ideally we'd like to fix all dropped areas...
+# ah! could normalize sums!
+# at ANC level
+# so then all we need is to have rel.area numbers for all obs
+#   which we do per above!
+# ah wait no I'm confused -- should think abt pct or anc??
+#   we convert area to ballots based on precinct totals
+#   so to avoid losing ballots we should renormalize @ pct lvl
+#   we might simply calculate rel.area without precinct.area, & after dropping
+
+crossref %<>% group_by(precinct, year) %>%
+                mutate(norm.area = over.area / sum(over.area)) 
+cat("\n\nHow big a chance is norm.area vs. rel.area??\n(fivenum of diff)\n")
+print(fivenum(crossref$norm.area - crossref$rel.area))
+cat("\n\n")
 
 # do the thing!
-crossref %<>% mutate(voters = voters * rel.area, ballots = ballots * rel.area)
+crossref %<>% mutate(voters = voters * norm.area, ballots = ballots * norm.area)
+
 
 # aggregate up to ANC
-crossref %<>% group_by(anc.full, year) %<>%
+reg.fixed <- crossref %>% group_by(anc.full, year) %>%
                summarize(voters = round(sum(voters)),
-	           ballots = round(sum(ballots)))
-reg.fixed <- tibble(anc.full = crossref$anc.full, year=crossref$year,
-                   voters=crossref$voters, ballots=crossref$ballots)
+	           ballots = round(sum(ballots)),
+		   duplicitous = sum(duplicitous))
+
+
+# drop geo data 
+reg.fixed <- tibble(anc.full = reg.fixed$anc.full, year=reg.fixed$year,
+                   voters=reg.fixed$voters, ballots=reg.fixed$ballots,
+		   duplicitous=reg.fixed$duplicitous)
+
+# get turnout
+reg.fixed %<>% mutate(turnout = ballots / voters)
 
 print(reg.fixed)
 
-write.table(reg.fixed, file=paste(path, "/cleaned_data/anc_turnout.csv", sep=""), sep=",", append=FALSE, quote=FALSE, row.name=FALSE, col.names=TRUE)
+write.table(reg.fixed, file=paste(path, "/cleaned_data/anc_turnout.csv", sep=""), sep=",", append=FALSE, quote=FALSE, row.names=FALSE, col.names=TRUE)
+
+
+
+
+
+# circle back to 2a. Dropping Style
+
+reg.fixed.drop <- collapsed %>% filter(!duplicitous) %>%
+                    group_by(anc.full, year) %>%
+		    summarize(voters = round(sum(voters)),
+		           ballots = round(sum(ballots)))
+
+reg.fixed.drop %<>% mutate(turnout = ballots / voters)
+
+write.table(reg.fixed.drop, file=paste(path, "/cleaned_data/anc_turnout_drop.csv", sep=""), sep=",", append=FALSE, quote=FALSE, row.names=FALSE, col.names=TRUE)
+

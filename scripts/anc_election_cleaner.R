@@ -4,7 +4,7 @@
 
 
 library(tidyverse)
-
+library(magrittr)
 
 path <- getwd()
 years <- c("2012", "2014", "2016", "2018")
@@ -98,9 +98,14 @@ for(year in years){
 
         # hang onto registration & ballot data to wrangle elsewhere!
 	#   (after fixing ANC names; before reshaping & tossing reg data)
-        year.regs <- data %>% select(precinct, ward, anc, contest_name, registered_voters, ballots, year)
+        year.regs <- data %>% select(precinct, ward, anc, contest_name,
+	                             registered_voters, ballots, year)
+	# collapse away from candidate lvl
+	year.regs %<>% group_by(precinct, ward, anc, year) %>%
+		    summarize(registered_voters = unique(registered_voters),
+		             ballots = unique(ballots))	      
         if(is.null(all.regs)) all.regs <- year.regs
-        all.regs <- bind_rows(all.regs, year.regs)
+        else all.regs <- bind_rows(all.regs, year.regs)
 
 
 

@@ -1,24 +1,26 @@
 ---
-title: "anc_analysis"
+title: "Preliminary ANC Election Analysis"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, results='hide', echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 ```
 
 
 
-```{r cache=TRUE, echo=FALSE, results='hide'}
+```{r init, results='hide'}
 
 library(tidyverse)
 
 # load data
-path <- getwd()  # lacks trailing slash
+#path <- getwd()  # lacks trailing slash
 
 #print(path)
+#setwd('..')
+#getwd()
 
-election.data <- read.csv(file=paste(path, "/cleaned_data/election_history_R.csv", sep=""), 
+election.data <- read.csv(file="../cleaned_data/election_history_R.csv", 
                           header=TRUE, sep=",")
 
 head(election.data)
@@ -43,12 +45,6 @@ election.data <- election.data %>% mutate(engagement = smd_anc_votes / smd_ballo
 
 
 
-# ideas-----
-# vote proportions across space
-# candidates across space
-# esp. uncontested and no candidates
-# did a write-in ever beat a candidate??
-# dist. of winning vote #s
 
 sum <- election.data %>% group_by(ward, year) %>% summarize(cand = mean(explicit_candidates), 
                             votes = mean(winner_votes), vote_norm = mean(winner_votes / smd_ballots),
@@ -60,15 +56,29 @@ sum %>% print(n=nrow(.))
 
 ```
 
-Load ANC election data 2012-2018
+ideas-----
 
-Ward-level:
+- vote proportions across space
 
-```{r}
+- candidates across space
 
-suppressPackageStartupMessages({
-  require(tidyverse)
-  })
+- esp. uncontested and no candidates
+
+- did a write-in ever beat a candidate??
+
+- dist. of winning vote #s
+
+
+
+Note vote.norm is here constructed as winner votes / ballots, which sort of deconflates it with ANC engagement...
+
+
+### Load ANC election data 2012-2018
+
+#### Ward-level:
+
+```{r ward}
+
 
 s <- as.data.frame(sum)
 y <- ggplot(s, aes(ward, engagement)) + geom_point(aes(colour=factor(year)))
@@ -81,10 +91,10 @@ x
 
 ```
 
-Contest-level
+#### Contest-level
 
-by write-in status of winner:
-```{r}
+##### by write-in status of winner:
+```{r contest}
 
 c <- as.data.frame(election.data)
 
@@ -100,24 +110,28 @@ write.in <- c %>% group_by(write_in_winner, year) %>% summarize(votes = mean(win
 #write.in
 
 x <- ggplot(write.in, aes(write_in_winner, vote_norm)) + geom_point(aes(color=factor(year)))
-x
+show(x)
 
 y <- ggplot(write.in, aes(write_in_winner, engagement)) + geom_point(aes(color=factor(year)))
-y
+show(y)
 ```
 
-by contested/uncontested:
-```{r}
+##### by contested/uncontested:
+```{r contested}
 contested <- c %>% group_by(explicit_candidates, year) %>% summarize(votes = mean(winner_votes), 
                                                          vote_norm = mean(vote_norm), 
                                                          engagement = mean(engagement),
                                                          count = n())
 
-x <- ggplot(contested, aes(explicit_candidates, vote_norm)) + geom_point(aes(color=factor(year)))
-x
+x <- ggplot(contested, aes(explicit_candidates, vote_norm)) +
+                geom_point(aes(color=factor(year))) +
+	    labs(title="How do (normalized) vote totals relate to # candidates filed?")
+show(x)
 
-y <- ggplot(contested, aes(explicit_candidates, engagement)) + geom_point(aes(color=factor(year)))
-y
+y <- ggplot(contested, aes(explicit_candidates, engagement)) +
+            geom_point(aes(color=factor(year))) +
+	    labs(title="How does voter engagement relate to # cands?")
+show(y)
 
 ```
 
