@@ -10,12 +10,17 @@ visualization/precinct_registration_test.html: visualization/precinct_registrati
 visualization/anc_election_analysis.html: visualization/anc_election_analysis.Rmd cleaned_data/election_history_R.csv
 	Rscript -e "library(rmarkdown); setwd('visualization'); render('anc_election_analysis.Rmd')"
 
+maps/anc-mapping/anc_map.html: cleaned_data/election_data_for_anc_smap.csv cleaned_data/anc_turnout.csv maps/anc-mapping/exploration.ipynb
+	jupyter nbconvert --to notebook --inplace --execute maps/anc-mapping/exploration.ipynb
 
 
 
 # Data processing
 
-cleaned_data/election_data_for_anc_map.csv: cleaned_data/election_history_R.csv map_prep.R
+finance: scripts/campaign_finance.rmd cleaned_data/election_history_R.csv
+	Rscript -e "library(rmarkdown); render('scripts/campaign_finance.rmd')"
+
+cleaned_data/election_data_for_anc_map.csv: cleaned_data/election_history_R.csv scripts/map_prep.R
 	Rscript scripts/map_prep.R
 
 cleaned_data/2018_elections_commissioners.csv: cleaned_data/election_history_R.csv merge_incumbents.R cleaned_data/current_anc_membership.csv
